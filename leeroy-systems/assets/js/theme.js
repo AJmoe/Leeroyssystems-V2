@@ -355,7 +355,7 @@
 
 		var renderPhoto = function () {
 			if (state.titles) state.title = state.titles[state.index] || '';
-			stage.innerHTML = '<img src="' + state.photos[state.index] + '" alt="' + esc(state.title || 'Photo') + ' (' + (state.index + 1) + ' of ' + state.photos.length + ')">';
+			stage.innerHTML = '<img src="' + esc(state.photos[state.index]) + '" alt="' + esc(state.title || 'Photo') + ' (' + (state.index + 1) + ' of ' + state.photos.length + ')">';
 			var multi = state.photos.length > 1;
 			prev.hidden = next.hidden = !multi;
 			caption.innerHTML = (state.title ? '<strong>' + esc(state.title) + '</strong>' : '') +
@@ -413,10 +413,49 @@
 		document.addEventListener('keydown', function (e) {
 			if (modal.hidden) return;
 			if (e.key === 'Escape') close();
+			if (e.key === 'Tab') {
+				// Keep keyboard focus inside the open viewer.
+				var f = Array.prototype.filter.call(modal.querySelectorAll('button, iframe, a[href]'), function (el) { return !el.hidden; });
+				if (!f.length) return;
+				var first = f[0], last = f[f.length - 1];
+				if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+				else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+				else if (!modal.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+			}
 			if (e.key === 'ArrowLeft' && !prev.hidden) step(-1);
 			if (e.key === 'ArrowRight' && !next.hidden) step(1);
 		});
 	}
+
+	/* Forms: "For Me" needs an email or a phone number; stop double submits */
+	document.querySelectorAll('form.form').forEach(function (form) {
+		var email = form.querySelector('[name="email"]');
+		var phone = form.querySelector('[name="phone"]');
+		var needsOne = form.querySelector('[name="form_type"][value="personal"]');
+		form.addEventListener('submit', function (e) {
+			if (needsOne && email && phone) {
+				email.setCustomValidity(email.value.trim() || phone.value.trim() ? '' : 'Please give an email address or a phone number.');
+				if (!form.reportValidity()) { e.preventDefault(); return; }
+			}
+			var btn = form.querySelector('[type="submit"]');
+			if (btn) {
+				if (btn.disabled) { e.preventDefault(); return; }
+				btn.disabled = true;
+				btn.setAttribute('aria-busy', 'true');
+				btn.dataset.label = btn.innerHTML;
+				btn.innerHTML = 'Sending…';
+			}
+		});
+		if (needsOne && email && phone) {
+			[email, phone].forEach(function (el) { el.addEventListener('input', function () { email.setCustomValidity(''); }); });
+		}
+	});
+	// Re-enable buttons if the page is restored from the back/forward cache.
+	window.addEventListener('pageshow', function () {
+		document.querySelectorAll('form.form [type="submit"][aria-busy]').forEach(function (btn) {
+			btn.disabled = false; btn.removeAttribute('aria-busy'); btn.innerHTML = btn.dataset.label;
+		});
+	});
 
 	/* CV dropzone */
 	document.querySelectorAll('[data-dropzone]').forEach(function (zone) {

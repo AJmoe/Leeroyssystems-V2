@@ -51,6 +51,8 @@ define( 'DB_DIR', __DIR__ . '/wp-content/database/' );
 define( 'DB_FILE', '.ht.sqlite' );
 define( 'DISALLOW_FILE_EDIT', true );
 define( 'WP_DEBUG', false );
+// Render's proxy sits in front of Apache: use X-Forwarded-For for form rate limiting.
+define( 'LEEROY_TRUST_PROXY', true );
 // Optional: reCAPTCHA v2 and the Facebook importer token, from env vars.
 foreach ( [ 'LEEROY_RECAPTCHA_SITEKEY', 'LEEROY_RECAPTCHA_SECRET', 'LEEROY_FB_ACCESS_TOKEN', 'LEEROY_FB_IMPORT_STATUS' ] as $leeroy_const ) {
 	if ( getenv( $leeroy_const ) ) {

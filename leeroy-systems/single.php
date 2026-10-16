@@ -78,7 +78,7 @@ while ( have_posts() ) :
 				if ( $recent->have_posts() ) :
 					?>
 					<div class="widget">
-						<h3 class="widget__title">More news</h3>
+						<h2 class="widget__title">More news</h2>
 						<ul class="recent">
 							<?php
 							while ( $recent->have_posts() ) :

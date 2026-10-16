@@ -19,6 +19,7 @@ require get_template_directory() . '/inc/icons.php';
 require get_template_directory() . '/inc/facebook-import.php';
 require get_template_directory() . '/inc/news-seed.php';
 require get_template_directory() . '/inc/gallery.php';
+require get_template_directory() . '/inc/hardening.php';
 
 // Post galleries are styled by the theme (grid + lightbox), not WordPress's inline CSS.
 add_filter( 'use_default_gallery_style', '__return_false' );
@@ -183,32 +184,143 @@ function leeroy_reading_time( int $post_id ): string {
  * SEO + favicons
  * ---------------------------------------------------------------------- */
 
+/** Shorten text to a search-snippet length, ending on a whole word. */
+function leeroy_meta_trim( string $text, int $max = 158 ): string {
+	$text = trim( preg_replace( '/\s+/u', ' ', wp_strip_all_tags( $text ) ) );
+	if ( mb_strlen( $text ) <= $max ) {
+		return $text;
+	}
+	$cut = preg_replace( '/\s+\S*$/u', '', mb_substr( $text, 0, $max - 1 ) );
+	return rtrim( $cut, ' ,;:.-' ) . '…';
+}
+
+/** The gallery album being viewed (?album=slug), if any. */
+function leeroy_current_album() {
+	if ( 'gallery' !== leeroy_current_slug() || empty( $_GET['album'] ) ) {
+		return null;
+	}
+	$album = get_term_by( 'slug', sanitize_title( wp_unslash( $_GET['album'] ) ), LEEROY_ALBUM_TAX );
+	return $album ? $album : null;
+}
+
+// One title style everywhere: "Page | Leeroy Systems".
+add_filter( 'document_title_separator', function () {
+	return '|';
+} );
+
 add_filter( 'pre_get_document_title', function ( $title ) {
-	if ( 'gallery' === leeroy_current_slug() && ! empty( $_GET['album'] ) ) {
-		$album = get_term_by( 'slug', sanitize_title( wp_unslash( $_GET['album'] ) ), LEEROY_ALBUM_TAX );
-		if ( $album ) {
-			return $album->name . ' | Gallery | Leeroy Systems';
-		}
+	$album = leeroy_current_album();
+	if ( $album ) {
+		return $album->name . ' | Gallery | Leeroy Systems';
 	}
 	$seo = leeroy_seo_data()[ leeroy_current_slug() ] ?? null;
 	return $seo ? $seo['title'] : $title;
 } );
 
-add_action( 'wp_head', function () {
-	$seo = leeroy_seo_data()[ leeroy_current_slug() ] ?? null;
-	if ( $seo ) {
-		echo '<meta name="description" content="' . esc_attr( $seo['description'] ) . '">' . "\n";
-		echo '<meta property="og:title" content="' . esc_attr( $seo['title'] ) . '">' . "\n";
-		echo '<meta property="og:description" content="' . esc_attr( $seo['description'] ) . '">' . "\n";
-		echo '<meta property="og:image" content="' . esc_url( leeroy_img( 'hq-leeroy.jpg' ) ) . '">' . "\n";
+// Album pages are distinct pages, so their canonical keeps ?album=.
+add_filter( 'get_canonical_url', function ( $url ) {
+	$album = leeroy_current_album();
+	return $album ? add_query_arg( 'album', $album->slug, $url ) : $url;
+} );
+
+// Search results and the 404 page stay out of search engines.
+add_filter( 'wp_robots', function ( $robots ) {
+	if ( is_search() || is_404() ) {
+		$robots['noindex'] = true;
+		if ( empty( $robots['nofollow'] ) ) {
+			$robots['follow'] = true;
+		}
 	}
-	if ( ! $seo && is_singular( 'post' ) ) {
-		$desc = wp_trim_words( get_the_excerpt( get_queried_object_id() ), 30, '…' );
-		echo '<meta name="description" content="' . esc_attr( $desc ) . '">' . "\n";
-		echo '<meta property="og:type" content="article">' . "\n";
-		echo '<meta property="og:title" content="' . esc_attr( get_the_title( get_queried_object_id() ) ) . '">' . "\n";
-		echo '<meta property="og:description" content="' . esc_attr( $desc ) . '">' . "\n";
-		echo '<meta property="og:image" content="' . esc_url( leeroy_post_cover( get_queried_object_id() ) ) . '">' . "\n";
+	return $robots;
+} );
+
+/** Title, description, image and URL for this request's SEO and social tags. */
+function leeroy_meta_for_request(): array {
+	$seo  = leeroy_seo_data()[ leeroy_current_slug() ] ?? null;
+	$meta = [
+		'title'       => wp_get_document_title(),
+		'description' => '',
+		'image'       => leeroy_img( 'hq-leeroy.jpg' ),
+		'url'         => '',
+		'type'        => 'website',
+	];
+	if ( $seo ) {
+		$album               = leeroy_current_album();
+		$meta['description'] = $seo['description'];
+		$meta['url']         = is_front_page() ? home_url( '/' ) : wp_get_canonical_url( get_queried_object_id() );
+		if ( $album ) {
+			$meta['description'] = $album->description ? $album->description : 'Photos from ' . $album->name . ' in the Leeroy Systems gallery: events, visits, training and community outreach in Botswana.';
+		}
+	} elseif ( is_singular() ) {
+		$id                  = get_queried_object_id();
+		$meta['description'] = get_the_excerpt( $id );
+		$meta['url']         = get_permalink( $id );
+		if ( is_singular( 'post' ) ) {
+			$meta['image'] = leeroy_post_cover( $id );
+			$meta['type']  = 'article';
+		}
+	} elseif ( is_category() || is_tag() ) {
+		$term                = get_queried_object();
+		$meta['description'] = $term->description ? $term->description : 'Leeroy Systems news filed under ' . $term->name . ': projects, partnerships and community stories from Botswana.';
+		$link                = get_term_link( $term );
+		$meta['url']         = is_wp_error( $link ) ? '' : $link;
+	}
+	$meta['description'] = leeroy_meta_trim( (string) $meta['description'] );
+	return $meta;
+}
+
+add_action( 'wp_head', function () {
+	if ( ! is_404() && ! is_search() ) {
+		$m = leeroy_meta_for_request();
+		if ( $m['description'] ) {
+			echo '<meta name="description" content="' . esc_attr( $m['description'] ) . '">' . "\n";
+		}
+		// WordPress prints rel=canonical on singular pages; term archives need their own.
+		if ( ( is_category() || is_tag() ) && $m['url'] ) {
+			echo '<link rel="canonical" href="' . esc_url( $m['url'] ) . '">' . "\n";
+		}
+		$og = [
+			'og:site_name'   => 'Leeroy Systems',
+			'og:locale'      => 'en_GB',
+			'og:type'        => $m['type'],
+			'og:title'       => $m['title'],
+			'og:description' => $m['description'],
+		];
+		foreach ( $og as $property => $content ) {
+			if ( $content ) {
+				echo '<meta property="' . esc_attr( $property ) . '" content="' . esc_attr( $content ) . '">' . "\n";
+			}
+		}
+		if ( $m['url'] ) {
+			echo '<meta property="og:url" content="' . esc_url( $m['url'] ) . '">' . "\n";
+		}
+		echo '<meta property="og:image" content="' . esc_url( $m['image'] ) . '">' . "\n";
+		echo '<meta name="twitter:card" content="summary_large_image">' . "\n";
+		echo '<meta name="twitter:title" content="' . esc_attr( $m['title'] ) . '">' . "\n";
+		if ( $m['description'] ) {
+			echo '<meta name="twitter:description" content="' . esc_attr( $m['description'] ) . '">' . "\n";
+		}
+		echo '<meta name="twitter:image" content="' . esc_url( $m['image'] ) . '">' . "\n";
+	}
+	if ( is_front_page() ) {
+		$c      = leeroy_contact();
+		$schema = [
+			'@context'  => 'https://schema.org',
+			'@type'     => 'Organization',
+			'name'      => 'Leeroy Systems',
+			'url'       => home_url( '/' ),
+			'logo'      => leeroy_img( 'logo.png' ),
+			'email'     => $c['email'],
+			'telephone' => $c['tel'],
+			'address'   => [
+				'@type'           => 'PostalAddress',
+				'streetAddress'   => 'Plot 176, Gaborone International Commerce Park',
+				'addressLocality' => 'Gaborone',
+				'addressCountry'  => 'BW',
+			],
+			'sameAs'    => array_values( array_filter( [ $c['facebook'], $c['linkedin'], $c['youtube'] ] ) ),
+		];
+		echo '<script type="application/ld+json">' . wp_json_encode( $schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . '</script>' . "\n";
 	}
 	echo '<meta name="theme-color" content="#223258">' . "\n";
 	if ( ! has_site_icon() ) {
@@ -274,6 +386,9 @@ function leeroy_handle_form() {
 	// Honeypot: real visitors never see or fill this field.
 	if ( ! empty( $_POST['company_website'] ) ) {
 		$respond( 'sent' );
+	}
+	if ( leeroy_form_rate_limited() ) {
+		$respond( 'busy' );
 	}
 
 	$def    = $defs[ $type ];
@@ -363,7 +478,9 @@ add_action( 'admin_post_leeroy_form', 'leeroy_handle_form' );
 function leeroy_form_open( string $type ) {
 	echo '<input type="hidden" name="action" value="leeroy_form">';
 	echo '<input type="hidden" name="form_type" value="' . esc_attr( $type ) . '">';
-	wp_nonce_field( 'leeroy_form_' . $type, '_leeroy_nonce' );
+	// Written by hand: wp_nonce_field() gives every form the same id attribute.
+	echo '<input type="hidden" name="_leeroy_nonce" value="' . esc_attr( wp_create_nonce( 'leeroy_form_' . $type ) ) . '">';
+	wp_referer_field();
 	echo '<div class="hp-field" aria-hidden="true"><label>Website<input type="text" name="company_website" tabindex="-1" autocomplete="off"></label></div>';
 }
 
@@ -377,6 +494,7 @@ function leeroy_form_notice( string $type ) {
 		'captcha'  => [ 'err', 'Please tick the "I\'m not a robot" box before submitting.' ],
 		'filesize' => [ 'err', 'Your CV is larger than 5 MB. Please upload a smaller file.' ],
 		'filetype' => [ 'err', 'Please upload your CV as a PDF, DOC or DOCX file.' ],
+		'busy'     => [ 'err', 'You have sent several messages in a short time. Please wait a few minutes and try again.' ],
 		'error'    => [ 'err', 'Sorry, something went wrong sending your message. Please email info@leeroysystems.co.bw directly.' ],
 	];
 	$m = $messages[ sanitize_key( $_GET['status'] ) ] ?? null;

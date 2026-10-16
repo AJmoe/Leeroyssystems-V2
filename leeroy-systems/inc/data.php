@@ -498,7 +498,7 @@ function leeroy_seo_data(): array {
 	$seo = [
 		'home'      => [
 			'title'       => 'Leeroy Systems | Futuristic Solutions for Smart Water',
-			'description' => 'Leeroy Systems is a pioneer of smart prepaid water metering in Africa: Metering-as-a-Service, IoT smart meters, data intelligence and an open multi-utility vending platform.',
+			'description' => 'Leeroy Systems pioneers smart prepaid water metering in Africa: Metering-as-a-Service, IoT smart meters, data intelligence and multi-utility vending.',
 		],
 		'community' => [
 			'title'       => 'Community | Leeroy Systems',
@@ -518,10 +518,13 @@ function leeroy_seo_data(): array {
 		],
 	];
 	foreach ( leeroy_services() as $slug => $s ) {
-		$seo[ $slug ] = [ 'title' => $s['title'] . ' | Leeroy Systems', 'description' => $s['lead'] ];
+		// Short leads get context so search snippets stay in the 100-160 character range.
+		$desc         = strlen( $s['lead'] ) < 100 ? $s['lead'] . ' ' . $s['title'] . ' from Leeroy Systems, smart prepaid water metering specialists in Botswana.' : $s['lead'];
+		$seo[ $slug ] = [ 'title' => $s['title'] . ' | Leeroy Systems', 'description' => $desc ];
 	}
 	foreach ( leeroy_projects() as $slug => $p ) {
-		$seo[ $slug ] = [ 'title' => $p['title'] . ' | Leeroy Systems', 'description' => $p['short'] ];
+		$desc         = strlen( $p['short'] ) < 100 ? $p['short'] . ' A Leeroy Systems smart water metering project in Botswana.' : $p['short'];
+		$seo[ $slug ] = [ 'title' => $p['title'] . ' | Leeroy Systems', 'description' => $desc ];
 	}
 	return $seo;
 }
