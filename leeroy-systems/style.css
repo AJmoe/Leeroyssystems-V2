@@ -1,0 +1,13 @@
+/*
+Theme Name:   Leeroy Systems
+Theme URI:    https://leeroysystems.co.bw
+Description:  Self-contained company theme for Leeroy Systems — smart prepaid water metering, Botswana. Layout modelled on the Medksy clinic template (top bar, sticky header, hero slider, feature cards, service/project details with sidebars). All pages, content, images and forms ship inside the theme; no page builder or form plugin required.
+Author:       Leeroy Systems
+Version:      1.0.0
+Requires at least: 6.0
+Requires PHP: 7.4
+License:      Proprietary
+Text Domain:  leeroy
+*/
+
+/* Styles live in assets/css/theme.css (enqueued from functions.php). */

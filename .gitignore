@@ -1,0 +1,12 @@
+# The zip is just a packaged copy of leeroy-systems/ for uploading to a host.
+*.zip
+
+# Never commit real WordPress config or local data.
+wp-config.php
+.env
+*.sqlite
+
+# OS / editor clutter
+Thumbs.db
+.DS_Store
+.vscode/

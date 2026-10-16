@@ -1,0 +1,38 @@
+# Render Blueprint — temporary Leeroy Systems website.
+# In Render: New + → Blueprint → pick this repository → Apply.
+services:
+  - type: web
+    name: leeroy-systems
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /wp-login.php
+    envVars:
+      - key: ADMIN_USER
+        value: admin
+      - key: ADMIN_EMAIL
+        value: info@leeroysystems.co.bw
+      - key: ADMIN_PASSWORD
+        generateValue: true   # see it under the service's Environment tab
+      # Optional — fill in on Render to let the forms send email:
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      # Optional — reCAPTCHA v2 on the forms:
+      - key: LEEROY_RECAPTCHA_SITEKEY
+        sync: false
+      - key: LEEROY_RECAPTCHA_SECRET
+        sync: false
+    # The free plan's disk is temporary: anything added in wp-admin (new
+    # posts, uploads) is lost when the service restarts or redeploys. The
+    # theme's own pages, news and gallery are rebuilt automatically on each
+    # start. For permanent storage use a paid plan and uncomment:
+    # disk:
+    #   name: wp-content
+    #   mountPath: /var/www/html/wp-content
+    #   sizeGB: 1
